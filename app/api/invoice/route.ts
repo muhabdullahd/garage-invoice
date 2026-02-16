@@ -80,6 +80,18 @@ async function fetchListingData(uuid: string): Promise<ListingData> {
   return response.json();
 }
 
+// Sanitize listing title for use as a filename (safe for all OSes)
+function sanitizeFilename(title: string, fallback: string): string {
+  const sanitized = title
+    .replace(/[/\\:*?"<>|]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .trim();
+  const safe = sanitized.slice(0, 80) || fallback;
+  return safe ? `invoice-${safe}.pdf` : `invoice-${fallback}.pdf`;
+}
+
 // Sanitize text to remove characters that WinAnsi encoding can't handle
 function sanitizeText(text: string): string {
   return text
@@ -641,12 +653,16 @@ export async function GET(request: NextRequest) {
 
     const listingData = await fetchListingData(uuid);
     const pdfBytes = await generatePDFInvoice(listingData, uuid);
+    const filename = sanitizeFilename(
+      listingData.listingTitle,
+      uuid.substring(0, 8)
+    );
 
     return new Response(Buffer.from(pdfBytes), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="invoice-${uuid}.pdf"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Content-Length": pdfBytes.length.toString(),
       },
     });
